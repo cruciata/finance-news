@@ -1,65 +1,55 @@
 import streamlit as st
 import feedparser
-import pandas as pd
 from datetime import datetime
 
-# 设置网页
-st.set_page_config(page_title="全球财经快讯", page_icon="🌐")
+# 页面配置
+st.set_page_config(page_title="全球财经看板", page_icon="💰")
 
-st.title("🌐 全球财经实时快讯")
-st.subheader("稳定版 - 自动抓取主流财经媒体")
+st.title("💰 实时财经新闻快讯")
+st.write("数据源：Google News (中文财经频道)")
 
-# 定义新闻源（这里选了新浪财经，非常稳定）
-NEWS_SOURCES = {
-    "新浪财经-国内新闻": "https://finance.sina.com.cn/realtime/china/index.xml",
-    "新浪财经-国际新闻": "https://finance.sina.com.cn/realtime/global/index.xml",
-    "新浪财经-证券新闻": "https://finance.sina.com.cn/realtime/stock/index.xml"
-}
-
-# 选择新闻源
-source_name = st.sidebar.selectbox("选择新闻频道", list(NEWS_SOURCES.keys()))
-source_url = NEWS_SOURCES[source_name]
-
-def get_rss_news(url):
+# 核心功能：获取新闻
+def fetch_finance_news():
+    # 这是 Google 新闻“商业”板块的中文 RSS 地址，稳定性极高
+    rss_url = "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVd3U0FtVnpHZ0pWVXlnQVAB?hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
+    
     try:
-        # 解析 RSS 数据
-        feed = feedparser.parse(url)
-        news_list = []
-        for entry in feed.entries[:20]: # 取前20条
-            news_list.append({
-                "标题": entry.title,
-                "链接": entry.link,
-                "发布时间": entry.published if 'published' in entry else "刚刚",
-                "摘要": entry.summary if 'summary' in entry else ""
-            })
-        return news_list
+        # 解析 RSS
+        feed = feedparser.parse(rss_url)
+        if not feed.entries:
+            return None
+        return feed.entries
     except Exception as e:
-        st.error(f"解析出错: {e}")
         return None
 
-# 刷新按钮
-if st.button('🔄 刷新获取最新新闻'):
+# 侧边栏：刷新按钮
+if st.sidebar.button('🔄 点击手动刷新'):
     st.cache_data.clear()
     st.rerun()
 
-# 获取并显示新闻
-with st.spinner('正在连接财经服务器...'):
-    news = get_rss_news(source_url)
+# 加载并显示新闻
+with st.spinner('正在同步全球财经数据...'):
+    news_entries = fetch_finance_news()
 
-if news:
-    for item in news:
+if news_entries:
+    st.success(f"已更新！当前共有 {len(news_entries[:20])} 条头条资讯")
+    
+    for entry in news_entries[:20]: # 只取最新的20条
         with st.container():
-            # 显示标题
-            st.markdown(f"### [{item['标题']}]({item['链接']})")
-            # 显示时间
-            st.caption(f"📅 {item['发布时间']}")
-            # 显示摘要（去掉HTML标签）
-            import re
-            clean_summary = re.sub('<[^<]+?>', '', item['摘要']) 
-            st.write(clean_summary[:200] + "...") 
-            st.divider()
+            # 标题变蓝色加粗
+            st.markdown(f"### [{entry.title}]({entry.link})")
+            
+            # 显示发布来源和日期
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                st.caption(f"📢 来源：{entry.source.get('title', '未知媒体')}")
+            with col2:
+                # 尝试格式化时间
+                st.caption(f"⏰ 发布时间：{entry.published[:16] if 'published' in entry else '刚刚'}")
+            
+            st.divider() # 画线
 else:
-    st.warning("暂未获取到数据，请尝试切换频道或稍后刷新。")
+    st.error("哎呀，服务器连接有点阻塞，请点击左侧按钮刷新试试。")
 
-# 侧边栏
-st.sidebar.info("提示：此版本使用 RSS 技术，解决了海外服务器访问受限的问题。")
+st.sidebar.markdown("---")
+st.sidebar.write("💡 **小贴士**：点击标题可直接跳转至媒体原文阅读。")
